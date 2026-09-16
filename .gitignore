@@ -1,0 +1,13 @@
+# Nested repository metadata should not be committed into this archive repo.
+**/.git/
+
+# GitHub blocks regular Git files over 100 MB.
+2.CMP/7.开发文档/cmp-platform-pro.zip
+2.CMP/7.开发文档/cmp-web-pro.zip
+1.ACO TSP/5. UI文档/Smart UI文档/01 外部输入文档/19 smart&EMAS融合/New_Smart UE_22-01-26/Charging Map（Done）/New_Smart_UE_Charging Map.pdf
+1.ACO TSP/5. UI文档/Smart UI文档/01 外部输入文档/19 smart&EMAS融合/New_Smart UE_22-01-26/02-Vehicle/Charging Map/New_Smart_UE_Charging Map.pdf
+
+ # Embedded repositories excluded from this archive upload.
+1.ACO TSP/7.源代码/dev_菜单名同步_0820/
+2.CMP/7.开发文档/cmp-platform-pro/cmp-platform-pro/
+2.CMP/7.开发文档/cmp-web-pro/cmp-web-pro/
