@@ -1,0 +1,698 @@
+// =============================================================================
+// MlinkPro — TBOX-TSP Vehicle Communication Protocol
+// Protocol Buffers v3 Definition
+// =============================================================================
+// Version: 1.0.0 (aligned with MlinkPro-SPEC-001 V1.0.0)
+// Product: MlinkPro
+// =============================================================================
+
+syntax = "proto3";
+
+package mlink_pro;
+
+option java_package = "com.cc.iot.bean.protocol";
+option java_outer_classname = "MlinkProProto";
+
+// =============================================================================
+// Envelope — 所有消息的信封层（7.2 节）
+// 所有上行和下行消息共享统一的消息信封结构
+// =============================================================================
+
+message Envelope {
+    uint32      version     = 1;   // 协议版本号（当前 = 1）
+    MessageType type        = 2;   // 消息类型标识
+    uint64      timestamp   = 3;   // 消息生成时间戳（Unix 毫秒）
+    bytes       payload     = 4;   // 业务消息 Protobuf 编码体
+    string      task_id     = 5;   // 全局唯一事务ID（UUID v4）
+    string      client_id   = 6;   // 设备ID
+    string      device_type = 7;   // 设备类型
+    map<string, string> ext = 8;   // 扩展字段，用于灰度、调试等场景
+}
+
+// =============================================================================
+// MessageType — 消息类型枚举（7.4 节）
+// 分段：0-99 上行上报，100-199 下行指令，200-299 上行回复，300-399 下行配置
+// =============================================================================
+
+enum MessageType {
+    // === 车辆状态上报（上行） ===
+    MSG_RVS_REPORT      = 0;    // 实时车况上报
+    MSG_TRS_REPORT      = 1;    // 触发式车况上报
+    MSG_MPM_EVENT       = 2;    // 上线/下线事件
+    MSG_ALARM_EVENT     = 3;    // 告警事件
+    MSG_LOCATION_REPORT = 4;    // 定位数据上报
+    MSG_DTC_REPORT      = 5;    // DTC 故障码上报
+
+    // === 远程控车（下行指令） ===
+    MSG_CMD_REQUEST     = 100;  // 控车指令下发
+
+    // === 远程控车（上行回复） ===
+    MSG_CMD_RESPONSE    = 200;  // 控车执行结果回复（ack / sack）
+
+    // === 配置管理（下行） ===
+    MSG_CONFIG_UPDATE   = 300;  // 信号采集配置下发
+}
+
+// =============================================================================
+// VehicleStatus — 实时车辆状态（149 个字段，按功能域分组）
+// 用于 RVS（8.1）、TRS（8.2）、AlarmEvent（8.4）、CmdResponse（9.3）
+// =============================================================================
+
+message VehicleStatus {
+    // ===== 基础行驶信息 =====
+    double      speed                           = 1;    // 速度 (km/h)
+    int32       direction                       = 2;    // 方向 (度, 0-359)
+    EngineStatus engineStatus                   = 3;    // 发动机状态
+    bool        speedValidity                   = 4;    // 车速有效位
+    double      distanceToEmpty                 = 5;    // 可续航里程 (km)
+    double      altitude                        = 6;    // 高度 (米)
+    double      latitude                        = 7;    // 纬度 (WGS84)
+    double      longitude                       = 8;    // 经度 (WGS84)
+    string      marsCoordinates                 = 9;    // 显示坐标系
+    bool        posCanBeTrusted                 = 10;   // 是否可信任位置
+    bool        carLocatorStatUploadEn          = 11;   // 汽车定位器统计是否允许上传
+    double      odometer                        = 12;   // 总里程 (km)
+    BrakeStatus handBrakeStatus                 = 13;   // 手刹状态
+    BrakeStatus electricParkBrakeStatus         = 14;   // 电子手刹状态
+    int32       engineSpeed                     = 15;   // 引擎转速 (RPM)
+    bool        brakePedalDepressed             = 16;   // 刹车踏板 (false:未踩下, true:踩下)
+    UsageMode   usageMode                       = 17;   // 使用模式
+    double      aveFuelConsumption              = 18;   // 平均油耗 (L/100km)
+    double      avgSpeed                        = 19;   // 平均速度 (km/h)
+    double      aveTraFuelConsumption           = 20;   // 50/100公里平均油耗 (L/100km)
+    double      averPowerConsumption            = 21;   // 平均电耗 (kWh/100km)
+    double      averTraPowerConsumption         = 22;   // 50/100公里平均电耗 (kWh/100km)
+    double      odometerOnFuelOnly              = 23;   // 总里程(燃油), 单位km
+    double      odometerOnBatteryOnly           = 24;   // 总里程(纯电), 单位km
+    bool        engineForbidStatus              = 25;   // 发动机禁止状态 (false:未禁止, true:禁止)
+
+    // ===== 天窗与车窗 =====
+    OpenStatus  sunroofOpenStatus               = 26;   // 天窗状态
+    bool        ventilateStatus                 = 27;   // 四窗透气
+    OpenStatus  winStatusLeftFront              = 28;   // 左前侧车窗位置状态
+    OpenStatus  winStatusLeftRear               = 29;   // 左后侧车窗位置状态
+    OpenStatus  winStatusRightFront             = 30;   // 右前侧车窗位置状态
+    OpenStatus  winStatusRightRear              = 31;   // 右后侧车窗位置状态
+    int32       winPosLeftFront                 = 32;   // 左前车窗位置信息 (0-100%)
+    int32       winPosLeftRear                  = 33;   // 左后车窗位置信息 (0-100%)
+    int32       winPosRightFront                = 34;   // 右前车窗位置信息 (0-100%)
+    int32       winPosRightRear                 = 35;   // 右后车窗位置信息 (0-100%)
+    // field 36 reserved
+
+    // ===== 车门与门锁 =====
+    LockStatus  doorLockStatusLeftFront         = 37;   // 左前门锁状态
+    LockStatus  doorLockStatusLeftRear          = 38;   // 左后门锁状态
+    LockStatus  doorLockStatusRightFront        = 39;   // 右前门锁状态
+    LockStatus  doorLockStatusRightRear         = 40;   // 右后门锁状态
+    OpenStatus  doorOpenStatusLeftFront         = 41;   // 左前门状态
+    OpenStatus  doorOpenStatusLeftRear          = 42;   // 左后门状态
+    OpenStatus  doorOpenStatusRightFront        = 43;   // 右前门状态
+    OpenStatus  doorOpenStatusRightRear         = 44;   // 右后门状态
+    CentralLockStatus centralLockingStatus      = 45;   // 中控锁状态
+    OpenStatus  engineHoodOpenStatus            = 46;   // 引擎盖开启/关闭
+
+    // ===== 后备箱 =====
+    LockStatus  trunkLockStatus                 = 47;   // 后备箱锁状态
+    OpenStatus  trunkOpenStatus                 = 48;   // 后备箱状态
+
+    // ===== 轮胎气压与温度 =====
+    WarningStatus tyrePreWarningLeftFront       = 49;   // 左前轮胎警报状态
+    WarningStatus tyrePreWarningLeftRear        = 50;   // 左后轮胎警报状态
+    WarningStatus tyrePreWarningRightFront      = 51;   // 右前轮胎警报状态
+    WarningStatus tyrePreWarningRightRear       = 52;   // 右后轮胎警报状态
+    double      tyreStatusLeftFront             = 53;   // 左前轮胎压力值 (bar/kPa)
+    double      tyreStatusLeftRear              = 54;   // 左后轮胎压力值 (bar/kPa)
+    double      tyreStatusRightFront            = 55;   // 右前轮胎压力值 (bar/kPa)
+    double      tyreStatusRightRear             = 56;   // 右后轮胎压力值 (bar/kPa)
+    double      tyreTempLeftFront               = 57;   // 左前轮胎温度 (°C)
+    double      tyreTempLeftRear                = 58;   // 左后轮胎温度 (°C)
+    double      tyreTempRightFront              = 59;   // 右前轮胎温度 (°C)
+    double      tyreTempRightRear               = 60;   // 右后轮胎温度 (°C)
+    bool        tyreTempWarningLeftFront        = 61;   // 左前轮胎温度报警 (false:正常, true:告警)
+    bool        tyreTempWarningLeftRear         = 62;   // 左后轮胎温度报警 (false:正常, true:告警)
+    bool        tyreTempWarningRightFront       = 63;   // 右前轮胎温度报警 (false:正常, true:告警)
+    bool        tyreTempWarningRightRear        = 64;   // 右后轮胎温度报警 (false:正常, true:告警)
+
+    // ===== 油量与电池 =====
+    double      fuelLevel                       = 65;   // 剩余油量 (%)
+    double      powerBatteryLevel               = 66;   // 动力电池电量 (%)
+    double      chargeLevel                     = 67;   // 蓄电池电量 (%)
+    int32       storageBattery12v               = 68;   // 12V电池状态
+    double      batteryState                    = 69;   // 动力电池健康状态（百分比）
+    double      distanceToEmptyOnBatteryOnly    = 70;   // 纯电续航里程 (km)
+    double      distanceToEmptyOnBattery100Soc  = 71;   // 百分之百电量续航里程 (km)
+    double      rangeToTenPercent               = 72;   // 到10%电量可行驶里程 (km)
+
+    // ===== 温度与空调 =====
+    double      exteriorTemp                    = 73;   // 车外温度 (°C)
+    double      interiorTemp                    = 74;   // 内部温度 (°C)
+    int32       exteriorPM25                    = 75;   // 外部PM2.5 (μg/m³)
+    int32       interiorPM25                    = 76;   // 内部PM2.5 (μg/m³)
+    int32       interiorSecondPM25              = 77;   // 车内二排PM2.5浓度 (μg/m³)
+    bool        preClimateActive                = 78;   // 空调是否在运行 (false:关, true:开)
+    double      airConditionTemperature         = 79;   // 空调设定温度 (°C)
+    int32       airConditionTime                = 80;   // 空调设定时间 (分钟)
+    bool        airBlowerActive                 = 81;   // 鼓风机状态/座舱通风/座舱净化 (true:on, false:off)
+    bool        defrostActive                   = 82;   // 除霜状态 (true:on, false:off)
+
+    // ===== 灯光与鸣笛 =====
+    LightStatus hazardLight                     = 83;   // 车辆双闪
+    LightStatus leftHeadlights                  = 84;   // 左前大灯
+    LightStatus rightHeadlights                 = 85;   // 右前大灯
+    SoundStatus honking                         = 86;   // 车辆鸣笛
+
+    // ===== 充电状态 =====
+    ChargerState chargerState                   = 87;   // 充电状态
+    ChargeScheduleStatus chargeSts              = 88;   // 预约充电状态
+    ChargeScheduleStatus bookChargeSts          = 89;   // 充电状态(预约充电)
+    HvStatus    chargeHvSts                     = 90;   // 上高压状态
+    bool        isPluggedIn                     = 91;   // 是否插入充电桩
+    string      chargingStartTime             = 92;   // 充电开始时间
+    int32       timeToFullyCharged              = 93;   // 充电剩余时间 (分钟)
+    double      chargCapacity                   = 94;   // 开始充电电量 (%)
+    int32       totalChargeTime                 = 95;   // 最近一次充电所花时间, 单位:分钟
+    double      totalChargeEnergy               = 96;   // 最近一次已充电电量, 单位:KWH(度)
+    double      chargingDistanceToEmptyOnStandard = 97; // 最近一次充电续航里程-标准, 单位:千米
+    double      chargingDistanceToEmptyOnDynamic  = 98; // 最近一次充电续航里程-动态, 单位:千米
+
+    // ===== 交流充电 =====
+    double      chargeIAct                      = 99;   // 交流充电电流 (A)
+    double      chargeUAct                      = 100;  // 交流充电电压 (V)
+    ConnectorStatus statusOfChargerConnection   = 101;  // 交流充电枪连接状态
+    double      acChargePower                   = 102;  // 交流充电功率, 单位:W
+    OpenStatus  acChargeLidStatus               = 103;  // AC充电盖状态
+
+    // ===== 直流充电 =====
+    double      dcChargeIAct                    = 104;  // 直流充电电流 (A)
+    double      dcChargeUAct                    = 105;  // 实际直流高压电池充电电压 (V)
+    ConnectorStatus dcDcConnectStatus           = 106;  // 直流充电枪连接状态
+    double      dcChargePower                   = 107;  // 直流充电功率, 单位:KW
+    OpenStatus  dcOrAcDcChargeLidStatus         = 108;  // DC或DCAC充电盖状态
+
+    // ===== 无线充电 =====
+    WptStatus   wptChargeSts                    = 109;  // 无线充电状态
+    double      wptChargeUAct                   = 110;  // 无线充电电压 (V)
+    double      wptChargeIAct                   = 111;  // 无线充电电流 (A)
+
+    // ===== 放电 =====
+    DischargeStatus disChargeSts                = 112;  // 放电状态
+    DischargeConnectorStatus disChargeConnectStatus = 113; // 放电枪插电状态
+    double      disChargeIAct                   = 114;  // 放电电流 (A)
+    double      disChargeUAct                   = 115;  // 放电电压 (V)
+    int32       timeToTargetDisCharged          = 116;  // 放电剩余时间 (分钟)
+
+    // ===== 预约出行与预约充电 =====
+    ScheduleResultStatus btPreChargeStatus      = 117;  // 预约出行-预约充电的预约结果
+    ScheduleResultStatus btPreBatteryPackHeatStatus = 118; // 预约出行-电池包预热的预约结果
+    bool        btHvFaultActive                 = 119;  // 预约出行-高压故障 (boolean)
+    bool        btActive                        = 120;  // 预约出行-总开关状态/周期出行开关 (true:on, false:off)
+    bool        btTempActive                    = 121;  // 预约出行-临时出行开关状态 (true:on, false:off)
+    bool        bcCycleActive                   = 122;  // 预约充电-周期开关 (true:on, false:off)
+    bool        bcTempActive                    = 123;  // 预约充电-临时开关 (true:on, false:off)
+
+    // ===== 遮阳帘 =====
+    OpenStatus  curtainOpenStatus               = 124;  // 遮阳帘位置信息
+    int32       curtainPos                      = 125;  // 遮阳帘位置状态百分比 (0-100%)
+    OpenStatus  sunCurtainRearOpenStatus        = 126;  // 后遮阳帘位置状态
+    int32       sunCurtainRearPos               = 127;  // 后遮阳帘位置状态百分比 (0-100%)
+
+    // ===== 座椅通风 =====
+    VentilationStatus drvVentSts                = 128;  // 主驾座椅通风状态
+    VentilationStatus passVentSts               = 129;  // 副驾座椅通风状态
+    VentilationLevel drvVentDetail              = 130;  // 主驾座椅通风等级信息
+    VentilationLevel passVentDetail             = 131;  // 副驾座椅通风等级信息
+
+    // ===== 座椅加热 =====
+    HeatingStatus drvHeatSts                    = 132;  // 主驾座椅加热状态
+    HeatingStatus passHeatingSts                = 133;  // 副驾座椅加热状态
+    HeatingStatus rlHeatingSts                  = 134;  // 二排左侧座椅加热状态
+    HeatingStatus rrHeatingSts                  = 135;  // 二排右侧座椅加热状态
+    HeatingStatus lrdHeatingSts                 = 136;  // 第三排左侧座椅加热状态
+    HeatingStatus rrdHeatingSts                 = 137;  // 第三排右侧座椅加热状态
+    HeatingLevel drvHeatLv                      = 138;  // 主驾座椅加热等级信息
+    HeatingLevel passHeatLv                     = 139;  // 副驾座椅加热等级信息
+    HeatingLevel rlHeatLv                       = 140;  // 二排左侧座椅加热等级信息
+    HeatingLevel rrHeatLv                       = 141;  // 二排右侧座椅加热等级信息
+    HeatingLevel lrdHeatLv                      = 142;  // 第三排左侧座椅加热等级
+    HeatingLevel rrdHeatLv                      = 143;  // 第三排右侧座椅加热等级
+
+    // ===== 安全带 =====
+    SeatbeltStatus seatBeltStatusLeftFront      = 144;  // 左前安全带锁扣状态
+    SeatbeltStatus seatBeltStatusRightFront     = 145;  // 右前安全带锁扣状态
+    SeatbeltStatus seatBeltStatusLeftRear       = 146;  // 左后安全带锁扣状态
+    SeatbeltStatus seatBeltStatusRightRear      = 147;  // 右后安全带锁扣状态
+    SeatbeltStatus seatBeltStatusMiddleRear     = 148;  // 中后安全带锁扣状态
+
+    // ===== 其他 =====
+    bool        rvsEnable                       = 149;  // RVS开关 (true:开启, false:关闭)
+}
+
+// =============================================================================
+// VehicleStatus 关联枚举定义
+// =============================================================================
+
+enum EngineStatus {
+    ENGINE_RUNNING = 0;    // 运行
+    ENGINE_STOPPED = 1;    // 关闭
+}
+
+enum BrakeStatus {
+    BRAKE_RELEASED = 0;    // 释放
+    BRAKE_APPLIED = 1;     // 拉起/激活
+    BRAKE_FAULT = 2;       // 故障
+}
+
+enum UsageMode {
+    MODE_ABANDON = 0;      // Abandon
+    MODE_INACTIVE = 1;     // Inactive (锁门时)
+    MODE_CONVENIENCE = 2;  // Convenience
+    MODE_ACTIVE = 11;      // Active
+    MODE_DRIVING = 13;     // Driving (发动机启动时)
+}
+
+enum OpenStatus {
+    OPEN_STATUS_UNKNOWN = 0; // 未知
+    OPEN_STATUS_OPEN = 1;    // 开
+    OPEN_STATUS_CLOSE = 2;   // 关
+    OPEN_STATUS_HALF = 3;    // 半开
+}
+
+enum LockStatus {
+    LOCK_UNKNOWN = 0;      // 未知
+    LOCK_UNLOCKED = 1;     // 开锁
+    LOCK_LOCKED = 2;       // 闭锁
+    LOCK_SAFE = 3;         // 安全锁
+}
+
+enum CentralLockStatus {
+    CENTRAL_LOCK_UNKNOWN = 0;        // 未知
+    CENTRAL_LOCK_UNLOCKED = 1;       // 解锁
+    CENTRAL_LOCK_TRUNK_UNLOCKED = 2; // 后备箱解锁
+    CENTRAL_LOCK_LOCKED = 3;         // 闭锁
+}
+
+enum WarningStatus {
+    WARNING_NORMAL = 0;        // 正常
+    WARNING_LOW_PRESSURE = 1;  // 低压告警
+    WARNING_HIGH_PRESSURE = 2; // 高压告警
+}
+
+enum LightStatus {
+    LIGHT_UNKNOWN = 0;     // 未知
+    LIGHT_ON = 1;          // 开启
+    LIGHT_OFF = 2;         // 关闭
+}
+
+enum SoundStatus {
+    SOUND_UNKNOWN = 0;     // 未知
+    SOUND_ON = 1;          // 开启
+    SOUND_OFF = 2;         // 关闭
+}
+
+enum ChargerState {
+    CHARGER_DEFAULT = 0;                         // 默认值
+    CHARGER_NOT_CHARGING = 1;                    // 未充电
+    CHARGER_AC_CHARGING = 2;                     // AC充电中
+    CHARGER_AC_CHARGING_PAUSED = 3;              // AC充电停止/充电暂停
+    CHARGER_AC_CHARGING_COMPLETED = 4;           // AC充电完成
+    CHARGER_AC_HEATING = 5;                      // AC加热中
+    CHARGER_AC_SCHEDULED = 6;                    // AC预约中(预约充电和预约出行共用)
+    CHARGER_RESERVED_7 = 7;                      // 预留
+    CHARGER_AC_DISCHARGING = 8;                  // AC放电中
+    CHARGER_DISCHARGE_PAUSED = 9;                // 放电结束停止/放电暂停
+    CHARGER_DISCHARGE_COMPLETED = 10;            // 放电完成
+    CHARGER_RESERVED_11 = 11;                    // 预留
+    CHARGER_DISCHARGE_FAULT = 12;                // 放电故障
+    CHARGER_AC_PILE_FAULT = 14;                  // AC充电故障（桩端）
+    CHARGER_DC_CHARGING = 15;                    // DC充电中
+    CHARGER_RESERVED_16 = 16;                    // 预留
+    CHARGER_RESERVED_17 = 17;                    // 预留
+    CHARGER_DC_CAR_FAULT = 18;                   // DC车端故障
+    CHARGER_DC_PILE_TEMP_FAULT = 19;             // DC桩端温度故障
+    CHARGER_DC_PILE_CONNECT_FAULT = 20;          // DC桩端链接故障
+    CHARGER_DC_PILE_OTHER_FAULT = 21;            // DC桩端其他故障
+    CHARGER_DC_PILE_EMERGENCY_FAULT = 22;        // DC桩端急停故障
+    CHARGER_DC_PILE_COMM_FAULT = 23;             // DC桩端通信故障
+    CHARGER_EXTREME_CHARGING = 24;               // 极充中
+    CHARGER_AC_CHARGING_ENDED_USER = 25;         // AC充电结束（用户按下停止）
+    CHARGER_DC_CHARGING_ENDED = 26;              // DC充电结束
+    CHARGER_AC_CAR_FAULT = 27;                   // AC充电故障（车端）
+    CHARGER_BOOST_CHARGING = 28;                 // 升压充电中
+    CHARGER_BOOST_CHARGING_FAULT = 29;           // 升压充电故障
+    CHARGER_WIRELESS_CHARGING = 30;              // 无线充电中
+}
+
+enum ChargeScheduleStatus {
+    SCHEDULE_NONE = 0;           // 无预约/默认
+    SCHEDULE_PROCESSING = 1;     // 预约中/开始充电成功
+    SCHEDULE_FAILED = 2;         // 开始充电失败
+    SCHEDULE_COMPLETED = 3;      // 充电完成/预约充电功能关闭
+    SCHEDULE_ACTIVE = 4;         // 有预约充电功能，且正在生效
+}
+
+enum HvStatus {
+    HV_UNDEFINED = 0;        // Undefined
+    HV_FAILED = 1;           // Failed
+    HV_SUCCESSFUL = 2;       // Successful
+    HV_RESERVED = 3;         // Reserved
+}
+
+enum ConnectorStatus {
+    CONNECTOR_NOT_CONNECTED = 0;           // 未连接
+    CONNECTOR_CHECK_STATUS_FAILED = 1;     // 查看状态失败
+    CONNECTOR_CHARGING_NOT_POWERED = 2;    // 充电未通电
+    CONNECTOR_CONNECTED_POWERED = 3;       // 连接并通电
+    CONNECTOR_UNKNOWN = 7;                 // 未知
+}
+
+enum WptStatus {
+    WPT_DEFAULT = 0;           // 默认值
+    WPT_NOT_CHARGING = 1;      // 未充电
+    WPT_CHARGING = 2;          // 充电中
+    WPT_CHARGING_PAUSED = 3;   // 充电停止/充电暂停
+    WPT_CHARGING_COMPLETED = 4;// 充电完成
+    WPT_HEATING = 5;           // 加热中
+    WPT_SCHEDULED = 6;         // 预约中(预约充电和预约出行共用)
+    WPT_RESERVED = 7;          // 预留
+    WPT_DISCHARGING = 8;       // 放电中
+    WPT_DISCHARGE_ENDED = 9;   // 放电结束
+    WPT_RESERVED_10 = 10;      // 预留
+    WPT_CHARGE_FAULT = 11;     // 充电故障
+    WPT_DISCHARGE_FAULT = 12;  // 放电故障
+}
+
+enum DischargeStatus {
+    DISCHARGE_DEFAULT = 0;         // 默认值
+    DISCHARGE_NOT_CHARGING = 1;    // 未充电
+    DISCHARGE_CHARGING = 2;        // 充电中
+    DISCHARGE_PAUSED = 3;          // 充电停止/充电暂停
+    DISCHARGE_COMPLETED = 4;       // 充电完成
+    DISCHARGE_HEATING = 5;         // 加热中
+    DISCHARGE_SCHEDULED = 6;       // 预约中(预约充电和预约出行共用)
+    DISCHARGE_RESERVED = 7;        // 预留
+    DISCHARGE_DISCHARGING = 8;     // 放电中
+    DISCHARGE_DISCHARGE_ENDED = 9; // 放电结束
+    DISCHARGE_RESERVED_10 = 10;    // 预留
+    DISCHARGE_CHARGE_FAULT = 11;   // 充电故障
+    DISCHARGE_DISCHARGE_FAULT = 12;// 放电故障
+}
+
+enum DischargeConnectorStatus {
+    DISCHARGE_CONN_NOT_CONNECTED = 0;       // 充/放电枪未连接
+    DISCHARGE_CONN_PLUGGED_NO_CARD = 1;     // 插上了充电枪但没有刷卡
+    DISCHARGE_CONN_PLUGGED_READY = 2;       // 插上了充电枪且刷了卡，但交流电还没有输入
+    DISCHARGE_CONN_PLUGGED_POWERED = 3;     // 检测到充电枪连接，且有交流电输入
+    DISCHARGE_CONN_RESERVED_INCAR = 4;      // 预留，车内放电
+    DISCHARGE_CONN_DETECTED_NO_OUTPUT = 5;  // 检测到放电枪连接，但没有电压输出
+    DISCHARGE_CONN_RESERVED_INCAR2 = 6;     // 预留，车内放电
+    DISCHARGE_CONN_DETECTED_OUTPUT = 7;     // 检测到放电枪连接，且有电压输出
+    DISCHARGE_CONN_INIT = 8;                // Init（初始化）
+    DISCHARGE_CONN_FAULT = 9;               // Fault 检测到枪线故障
+    DISCHARGE_CONN_HALF_CONNECTED = 10;     // 半连接状态
+}
+
+enum ScheduleResultStatus {
+    SCHEDULE_RESULT_DEFAULT = 0;     // Default
+    SCHEDULE_RESULT_SUCCESS = 1;     // Success
+    SCHEDULE_RESULT_CANCELLED = 2;   // Cancelled
+    SCHEDULE_RESULT_FAILED = 3;      // Fail
+}
+
+enum VentilationStatus {
+    VENT_UNKNOWN = 0;                // 未知/默认
+    VENT_OFF = 1;                    // 关
+    VENT_ON = 2;                     // 开
+    VENT_ERROR = 3;                  // 错误
+    VENT_FUNCTION_LIMITED = 4;       // 功能受限
+    VENT_ENERGY_LIMITED = 5;         // 能量受限
+}
+
+enum VentilationLevel {
+    VENT_LEVEL_OFF = 0;              // 关
+    VENT_LEVEL_1 = 1;                // level1
+    VENT_LEVEL_2 = 2;                // level2
+    VENT_LEVEL_3 = 3;                // level3
+}
+
+enum HeatingStatus {
+    HEAT_UNKNOWN = 0;                // 未知/默认
+    HEAT_OFF = 1;                    // 关
+    HEAT_ON = 2;                     // 开
+    HEAT_ERROR = 3;                  // 错误
+    HEAT_FUNCTION_LIMITED = 4;       // 功能限制
+    HEAT_ENERGY_LIMITED = 5;         // 能量限制
+}
+
+enum HeatingLevel {
+    HEAT_LEVEL_OFF = 0;              // 关
+    HEAT_LEVEL_1 = 1;                // level1
+    HEAT_LEVEL_2 = 2;                // level2
+    HEAT_LEVEL_3 = 3;                // level3
+}
+
+enum SeatbeltStatus {
+    SEATBELT_LOCKED = 0;             // 带扣锁
+    SEATBELT_UNLOCKED = 1;           // 带扣解锁
+    SEATBELT_FAULT = 2;              // 故障
+}
+
+// =============================================================================
+// 8.3 MPM 事件 — 设备上下线
+// Topic: up/{productKey}/{clientId}/event/mpm
+// =============================================================================
+
+message MpmEvent {
+    MpmType          type         = 1;   // ONLINE 或 OFFLINE
+    PowerMode        power_mode   = 2;   // 电源模式
+    DisconnectReason reason       = 3;   // 下线原因（仅 OFFLINE 时有效）
+    string           vin          = 4;   // 车架号
+    string           iccid        = 5;   // SIM 卡 ICCID
+    string           firmware_ver = 6;   // TBOX 固件版本号
+    string           device_type  = 7;   // 设备类型
+}
+
+enum MpmType {
+    ONLINE  = 0;
+    OFFLINE = 1;
+}
+
+enum PowerMode {
+    NORMAL  = 0;
+    STANDBY = 1;
+    SLEEP_POLL = 2;
+    OFF = 3;
+}
+
+enum DisconnectReason {
+    NORMAL_DISCONNECT   = 0;   // 正常下线
+    ABNORMAL_DISCONNECT = 1;   // 异常断连
+    NETWORK_TIMEOUT     = 2;   // 网络超时
+    POWER_OFF_EVENT     = 3;   // 断电
+}
+
+// =============================================================================
+// 8.4 告警事件
+// Topic: up/{productKey}/{clientId}/event/alarm
+// =============================================================================
+
+message AlarmEvent {
+    AlarmType            alarm_type     = 1;   // 告警类型
+    Severity             severity       = 2;   // 严重程度
+    VehicleStatus        vehicle_status = 3;   // 告警发生时的完整车况快照
+    Location             location       = 4;   // 告警发生时的位置信息
+}
+
+enum AlarmType {
+    ALARM_COLLISION        = 0;   // 碰撞
+    ALARM_WATER_INGRESSION = 1;   // 涉水
+    ALARM_THEFT            = 2;   // 防盗触发
+    ALARM_GEOFENCE         = 3;   // 地理围栏
+    ALARM_OVERSPEED        = 4;   // 超速
+    ALARM_TOWING           = 5;   // 拖车
+}
+
+enum Severity {
+    SEVERITY_INFO     = 0;
+    SEVERITY_WARNING  = 1;
+    SEVERITY_CRITICAL = 2;
+}
+
+// =============================================================================
+// 8.5 定位数据上报
+// Topic: up/{productKey}/{clientId}/location/report
+// =============================================================================
+
+message LocationReport {
+    Location       location        = 1;
+    double         speed_kmh       = 2;   // 车速 (km/h)
+    double         heading_deg     = 3;   // 航向角 (度, 0-360)
+    double         altitude_m      = 4;   // 海拔 (米)
+    uint32         satellite_count = 5;   // 可见卫星数
+    LocationSource source          = 6;   // 定位源
+}
+
+message Location {
+    double latitude  = 1;   // 纬度 (WGS84)
+    double longitude = 2;   // 经度 (WGS84)
+    uint64 timestamp = 3;   // GPS 时间戳（毫秒）
+}
+
+enum LocationSource {
+    LOC_GPS     = 0;
+    LOC_BEIDOU  = 1;
+    LOC_GLONASS = 2;
+    LOC_DR      = 3;   // 航位推算
+}
+
+// =============================================================================
+// 8.6 DTC 故障码上报
+// Topic: up/{productKey}/{clientId}/diagnosis/dtc
+// =============================================================================
+
+message DtcReport {
+    repeated DtcInfo dtcs        = 1;
+    uint32           total_count = 2;   // 当前 DTC 总数
+}
+
+message DtcInfo {
+    string   dtc_code         = 1;   // DTC 编码（如 "P0300"）
+    string   description      = 2;   // 故障描述
+    Severity severity         = 3;
+    uint32   occurrence_count = 4;   // 发生次数
+    uint64   first_seen       = 5;   // 首次出现时间戳
+    uint64   last_seen        = 6;   // 最近出现时间戳
+}
+
+// =============================================================================
+// 9.2 指令下发（CmdRequest）
+// Topic: down/{productKey}/{clientId}/command/request
+// =============================================================================
+
+message CmdRequest {
+    string        service_key = 1;   // 指令标识，如 "RDU-ON"
+    bytes         params      = 2;   // 指令参数（Protobuf 编码）
+    uint32        timeout_sec = 3;   // 指令执行超时时间（秒），默认 30
+    uint64        created_at  = 4;   // 指令创建时间戳（毫秒）
+    CmdSignature  signature   = 5;   // 指令签名（可选），高安全指令携带
+}
+
+// =============================================================================
+// 9.3 执行结果回复（CmdResponse）
+// Topic: up/{productKey}/{clientId}/command/response
+// =============================================================================
+
+message CmdResponse {
+    string        service_key        = 1;   // 对应指令的 service_key
+    string        operation_trigger  = 2;   // 操作触发源
+    VehicleStatus vehicle_status     = 3;   // 执行后车况快照（仅 sack 携带）
+    ResponsePhase phase              = 4;
+    ResultCode    result_code        = 5;
+    string        message            = 6;   // 可读的结果描述
+}
+
+enum ResponsePhase {
+    ACK  = 0;   // 接收确认
+    SACK = 1;   // 执行结果
+}
+
+enum ResultCode {
+    SUCCESS              = 0;   // 成功
+    ERR_UNSUPPORTED_CMD  = 1;   // 不支持的指令
+    ERR_INVALID_PARAMS   = 2;   // 参数错误
+    ERR_EXECUTION_FAILED = 3;   // 执行失败
+    ERR_VEHICLE_STATE    = 4;   // 车辆状态不允许
+    ERR_TIMEOUT          = 5;   // 执行超时
+    ERR_DUPLICATE_TASK   = 6;   // 重复任务（幂等去重命中）
+}
+
+// =============================================================================
+// 9.5 各指令参数定义
+// =============================================================================
+
+// 9.5.1 RDU — 远程解锁全部车门 (serviceKey: RDU-ON)
+message RduParams {}
+
+// 9.5.2 RDL — 远程关闭全部车门 (serviceKey: RDL-OFF)
+message RdlParams {}
+
+// 9.5.3 RTU — 远程解锁后备箱 (serviceKey: RDL-TargetOFF)
+message RtuParams {}
+
+// 9.5.4 RES — 远程启动/关闭发动机 (serviceKey: RES-Engine-ON / RES-Engine-OFF)
+message ResParams {
+    uint32 duration_min = 1;   // 运行时长（分钟），0=使用默认值（15分钟）
+}
+
+// 9.5.5 RHL — 远程闪灯鸣笛 (serviceKey: RHL-HornAndLight)
+message RhlParams {
+    uint32 repeat_count = 1;   // 重复次数，默认 3
+    uint32 duration_ms  = 2;   // 单次持续时间（毫秒），默认 500
+}
+
+// 9.5.6 RCE — 远程空调控制
+
+// 开启空调 (serviceKey: RCE-ON)
+message RceOnParams {
+    double   target_temp  = 1;   // 目标温度 (°C)，默认 24.0
+    uint32   duration_min = 2;   // 运行时长（分钟），默认 30
+}
+
+// 关闭空调 (serviceKey: RCE-OFF)
+message RceOffParams {}
+
+// 设置温度 (serviceKey: RCE-Temperature)
+message RceTempParams {
+    double target_temp = 1;   // 目标温度 (°C)
+}
+
+// =============================================================================
+// 10. 信号采集配置
+// Topic: down/{productKey}/{clientId}/config/update
+// =============================================================================
+
+message ConfigUpdate {
+    string     config_id      = 1;   // 配置版本 ID
+    ConfigType config_type    = 2;   // 配置类型
+    bytes      config_data    = 3;   // 配置数据（YAML 格式）
+    uint64     effective_time = 4;   // 生效时间戳（毫秒），0=立即生效
+}
+
+enum ConfigType {
+    CONFIG_RVS = 0;   // RVS 实时上报配置
+    CONFIG_TRS = 1;   // TRS 触发上报配置
+}
+
+// 配置确认消息（通过 command/response Topic 回复）
+message ConfigAck {
+    string     config_id   = 1;
+    ResultCode result_code = 2;
+    string     message     = 3;
+}
+
+// =============================================================================
+// 11.3 指令签名（可选）
+// =============================================================================
+
+message CmdSignature {
+    string algorithm = 1;   // 签名算法，如 "HMAC-SHA256"
+    bytes  signature = 2;   // 签名值
+    uint64 nonce     = 3;   // 防重放随机数
+    uint64 expire_at = 4;   // 签名过期时间戳（毫秒）
+}
+
+// =============================================================================
+// 附录 B — serviceKey 映射表（注释形式）
+//
+// | serviceKey         | 说明               | Params 类型    |
+// | ------------------ | ------------------ | -------------- |
+// | RDU-ON             | 远程解锁全部车门   | RduParams      |
+// | RDL-OFF            | 远程关闭全部车门   | RdlParams      |
+// | RDL-TargetOFF      | 远程解锁后备箱     | RtuParams      |
+// | RES-Engine-ON      | 远程启动发动机     | ResParams      |
+// | RES-Engine-OFF     | 远程关闭发动机     | ResParams      |
+// | RHL-HornAndLight   | 远程闪灯鸣笛       | RhlParams      |
+// | RCE-ON             | 远程开启空调       | RceOnParams    |
+// | RCE-OFF            | 远程关闭空调       | RceOffParams   |
+// | RCE-Temperature    | 空调温度设置       | RceTempParams  |
+// | KEY-ROTATE         | 密钥轮换           | (预留)         |
+// =============================================================================
